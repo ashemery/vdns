@@ -1,4 +1,4 @@
-#! /usr/bin/python
+#!/usr/bin/python
 
 import sys
 import subprocess
@@ -22,7 +22,8 @@ def create_session():
     neoun = raw_input('Enter neo4j DB username or press [ENTER] for neo4j: ')
     if len(neoun) == 0:
         neoun = "neo4j"
-    addr = 'https://' + neoip + ':7473/db/data/'
+#    addr = 'https://' + neoip + ':7473/db/data/' # Uncomment if your server is using a secure connection (default setup uses this)
+    addr = 'http://' + neoip + ':7474/db/data/' # running Neo4j on default port (HTTP insecure)
     gdb = GraphDatabase(addr, username=neoun, password=getpass('Enter neo4j password: '))
     return gdb
 
@@ -37,23 +38,25 @@ def main():
     # Handle command-line arguments
     PARSER = optparse.OptionParser()
     PARSER.add_option('--logfile', default=None, help='Logfile to read from.  Default: %default')
-    PARSER.parse_args()
+    #PARSER.parse_args()
+    options, args = PARSER.parse_args()	# Added this line so we can use access the logfile option
+    print options.logfile				# just a check
     #print OPTIONS, ARGUMENTS
 
     gdb = create_session()
     # Create a BRO log file reader and pull from the logfile
-    full_query = "cat {0} | /usr/local/bro/bin/bro-cut uid id.orig_h id.orig_p\
-            id.resp_h id.resp_p query answers qtype_name ".format(OPTIONS.logfile)
+    full_query = "cat {0} | /nsm/bro/bin/bro-cut uid id.orig_h id.orig_p id.resp_h id.resp_p query answers qtype_name ".format(options.logfile)	# bro-cut modified based on system setup
 
     # ___ Fails the first time even after the NUll node is added____
+    dns_Dips = gdb.labels.create("DNS_DEST_IPS") #create label
     dnsquery = gdb.labels.create("DNS_COMMS") #create label
     queries = gdb.labels.create("DNS_QUERIES") #create label
     answers = gdb.labels.create("DNS_ANSWERS") #create label
     qtypes = gdb.labels.create("DNS_QTYPES") #create label
     dns_Sips = gdb.labels.create("DNS_SOURCE_IPS") #create label
-    dns_Dips = gdb.labels.create("DNS_DEST_IPS") #create label
+
     print "[+] Creating Labels..."
-    sleep(5)
+    sleep(2)
 
     nval = gdb.node.create(query="NULL") #create null node
     nval.labels.add('DNS_QUERIES') #initialize node label w/ null node
@@ -65,8 +68,8 @@ def main():
     nval4.labels.add('DNS_ANSWERS') #initialize node label w/ null node
     nval5 = gdb.node.create(s_ip="NULL") #create node
     nval5.labels.add('DNS_SOURCE_IPS') #initialize node label w/ null node
-    nval6 = gdb.node.create(d_ip='NULL')
-    nval6.labels.add('DNS_SOURCE_IPS')
+    nval6 = gdb.node.create(d_ip="NULL")
+    nval6.labels.add('DNS_DEST_IPS') # this was DNS_SOURCE_IPS, so it is modified to DNS_DEST_IPS as it was missing, and could not query the DB
     p = subprocess.Popen(full_query, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     cnt = 0 #Counter to Track Number of Entries based on threads created to ingest them
     for line  in p.stdout.readlines():
